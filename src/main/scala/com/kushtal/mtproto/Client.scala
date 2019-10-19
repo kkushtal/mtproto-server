@@ -22,10 +22,10 @@ object Client {
       val run = for {
         _ <- socket.connect(address)
         _ <- log(s"Connected: $address")
-        zsocket = new ZSocketClient(socket)
+        socketClient = new SocketClient(socket)
 
-        responsePQ <- zsocket.sendReqPQ(Auth.empty.withNextNonce)
-        responseDH <- zsocket.sendReqDH(responsePQ)
+        responsePQ <- socketClient.sendReqPQ(Auth.empty.withNextNonce)
+        responseDH <- socketClient.sendReqDH(responsePQ)
 
         _ <- socket.close
         _ <- log(s"Disconnected: $address")
@@ -35,43 +35,43 @@ object Client {
         err => ClientLog.log(s"Execution failed with: $err") *> Task.unit,
         _ => Task.unit
       )
-
     }
   }
+}
 
-  class ZSocketClient(socket: ZSocketChannelAsync) {
-    def sendReqPQ(auth: Auth): RIO[Console, Request] = {
-      for {
-        _ <- ClientLog.log(s"****************************************")
-        request = new Request(Headers.init, Routes.ReqPQ, auth, new ReqPQ())
-        _ <- ClientLog.send(s"[ReqPQ = $request]")
 
-        encRequest <- request.encode
-        _ <- socket.writeBuffer(encRequest)
-        encResponse <- socket.readBuffer()
-        response <- Request.decode(encResponse)
+class SocketClient(socket: ZSocketChannelAsync) {
+  def sendReqPQ(auth: Auth): RIO[Console, Request] = {
+    for {
+      _ <- ClientLog.log(s"****************************************")
+      request = new Request(Headers.init, Routes.ReqPQ, auth, new ReqPQ())
+      _ <- ClientLog.send(s"[ReqPQ = $request]")
 
-        _ <- ClientLog.receive(s"[ResPQ = $response]")
-        _ <- ClientLog.log(s"****************************************")
-      } yield response
-    }
+      encRequest <- request.encode
+      _ <- socket.writeBuffer(encRequest)
+      encResponse <- socket.readBuffer()
+      response <- Request.decode(encResponse)
 
-    def sendReqDH(response: Request): RIO[Console, Request] = {
-      for {
-        _ <- ClientLog.log(s"****************************************")
-        resPQ = response.body.as[ResPQ]
-        request = response.copy(headers = response.headers.next, route = Routes.ReqDH, body = ReqDH.nextBy(resPQ))
-        _ <- ClientLog.send(s"[ReqDH = $request]")
-
-        encRequest <- request.encode
-        _ <- socket.writeBuffer(encRequest)
-        encResponse <- socket.readBuffer()
-        response <- Request.decode(encResponse)
-
-        _ <- ClientLog.receive(s"[ResDH_OK = $response]")
-        _ <- ClientLog.log(s"****************************************")
-      } yield response
-    }
-
+      _ <- ClientLog.receive(s"[ResPQ = $response]")
+      _ <- ClientLog.log(s"****************************************")
+    } yield response
   }
+
+  def sendReqDH(response: Request): RIO[Console, Request] = {
+    for {
+      _ <- ClientLog.log(s"****************************************")
+      resPQ = response.body.as[ResPQ]
+      request = response.copy(headers = response.headers.next, route = Routes.ReqDH, body = ReqDH.nextBy(resPQ))
+      _ <- ClientLog.send(s"[ReqDH = $request]")
+
+      encRequest <- request.encode
+      _ <- socket.writeBuffer(encRequest)
+      encResponse <- socket.readBuffer()
+      response <- Request.decode(encResponse)
+
+      _ <- ClientLog.receive(s"[ResDH_OK = $response]")
+      _ <- ClientLog.log(s"****************************************")
+    } yield response
+  }
+
 }
