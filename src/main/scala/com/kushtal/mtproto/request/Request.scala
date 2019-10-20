@@ -12,6 +12,8 @@ case class Request(headers: Headers, route: Route, auth: Auth, body: Body) {
 
   def checkBy(refAuth: Auth): Task[Unit] = refAuth.checkBy(this.route, this.auth)
 
+  def isLast: Boolean = route.isEqual(Routes.ResDH_OK)
+
   def encode: Task[BitVector] = {
     for {
       bitsRoute <- route.encode

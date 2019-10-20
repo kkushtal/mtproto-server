@@ -14,8 +14,8 @@ class Socket(socket: ZSocketChannelAsync) {
   def listen: RIO[Console with Clock, Unit] = {
     val run = for {
       auth <- Ref.make(Auth.empty)
-      schedule = Schedule.doUntil[Response](_.route.isEqual(Routes.ResDH_OK))
-      _ <- receiveAndSend(auth).repeat(schedule)
+      untilLastResponse = Schedule.doUntil[Response](_.isLast)
+      _ <- receiveRequest_and_sendResponse(auth).repeat(untilLastResponse)
       _ <- ZIO.sleep(1.second)
     } yield ()
 
@@ -25,7 +25,7 @@ class Socket(socket: ZSocketChannelAsync) {
     )
   }
 
-  def receiveAndSend(refAuth: Ref[Auth]): RIO[Console, Response] = {
+  def receiveRequest_and_sendResponse(refAuth: Ref[Auth]): RIO[Console, Response] = {
     for {
       auth <- refAuth.get
       encRequest <- socket.readBuffer()
